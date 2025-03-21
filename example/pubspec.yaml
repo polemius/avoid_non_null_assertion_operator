@@ -4,6 +4,6 @@ environment:
   sdk: '>=2.18.0 <4.0.0'
 
 dev_dependencies:
-  custom_lint: ^0.6.10
+  custom_lint: ^0.6.8
   avoid_non_null_assertion_operator:
     path: ../
