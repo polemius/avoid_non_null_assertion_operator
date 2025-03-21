@@ -1,3 +1,7 @@
+## 1.1.0
+
+- Update versions of packages
+
 ## 1.0.0
 
 - Initial release
