@@ -1,0 +1,9 @@
+analyzer:
+  plugins:
+    - custom_lint
+  errors:
+    undefined_lint: ignore
+
+linter:
+  rules:
+    avoid_non_null_assertion_operator: true

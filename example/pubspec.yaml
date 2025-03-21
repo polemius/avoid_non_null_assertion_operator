@@ -1,0 +1,9 @@
+name: avoid_non_null_assertion_operator_example
+description: Example for avoid_non_null_assertion_operator
+environment:
+  sdk: '>=2.18.0 <4.0.0'
+
+dev_dependencies:
+  custom_lint: ^0.7.5
+  avoid_non_null_assertion_operator:
+    path: ../
