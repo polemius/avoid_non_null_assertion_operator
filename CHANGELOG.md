@@ -1,3 +1,7 @@
+## 1.5.0
+
+- Update algorithm to handle throw and early exit
+
 ## 1.4.0
 
 - Rewrite algorithm for ternary operator
