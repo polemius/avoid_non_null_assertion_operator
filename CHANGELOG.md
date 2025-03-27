@@ -1,3 +1,7 @@
+## 1.4.0
+
+- Rewrite algorithm for ternary operator
+
 ## 1.3.0
 
 - Rewrite algorithm for more advanced validations
