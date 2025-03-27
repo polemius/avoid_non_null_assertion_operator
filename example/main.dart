@@ -180,6 +180,40 @@ void test19() {
   print(result);
 }
 
+String? test20(D testD) {
+  if (testD.name == null) {
+    return null;
+  }
+
+  return testD.name!; // allowed
+}
+
+void test21() {
+  String? n = 'hello';
+  final items = [
+    'start',
+    if (n != null) n!, // allowed
+    'end',
+  ];
+  print(items);
+}
+
+String? test22(D testD) {
+  if (testD.name == null) {
+    throw Error();
+  }
+
+  return testD.name!; // allowed
+}
+
+String? test23(D testD) {
+  if (testD.name == null) {
+    return null;
+  } else {
+    return testD.name!; // allowed
+  }
+}
+
 void main() {
   final A testA = A();
 
