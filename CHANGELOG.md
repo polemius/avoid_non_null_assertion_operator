@@ -1,3 +1,7 @@
+## 1.6.0
+
+- Update algorithm to catch more advanced examples
+
 ## 1.5.0
 
 - Update algorithm to handle throw and early exit
