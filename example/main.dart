@@ -251,3 +251,35 @@ void main() {
     print(testA.nullable!); // Allowed
   }
 }
+
+class E {
+  F? testF;
+  E(this.testF);
+}
+
+class F {
+  G testG;
+  H? testH;
+  F(this.testG, [this.testH]);
+}
+
+class H {
+  F? testF;
+  H(this.testF);
+}
+
+enum G { g_a, g_b, g_c }
+
+F _createTaskAction(E task, int serviceUserId) {
+  return F(G.g_c);
+}
+
+void testFunction(E task, dynamic event) {
+  F testFLocal = _createTaskAction(task, event.serviceUserId);
+
+  if (task.testF?.testH?.testF != null &&
+      (task.testF!.testG == G.g_a || task.testF!.testG == G.g_b)) {
+    final localTestTestF = task.testF!;
+    final testFHF = localTestTestF.testH!.testF!;
+  }
+}
