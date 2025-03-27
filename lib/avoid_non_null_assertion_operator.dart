@@ -28,6 +28,11 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
       String? variableName = _getVariableName(operand);
 
       if (variableName == null) {
+        if (operand is IndexExpression) {
+          if (_isIndexExpressionGuarded(node, operand)) {
+            return;
+          }
+        }
         if (!_isExpressionGuarded(node)) {
           reporter.atNode(node, code);
         }
@@ -38,6 +43,41 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
         reporter.atNode(node, code);
       }
     });
+  }
+
+  bool _isIndexExpressionGuarded(
+      PostfixExpression node, IndexExpression operand) {
+    AstNode? current = node;
+    while (current != null) {
+      if (current is IfStatement) {
+        final condition = current.expression;
+        if (_isNodeInStatement(node, current.thenStatement) &&
+            _checkMapContainsKeyGuardForIndex(
+                condition, operand.target!, operand.index)) {
+          return true;
+        }
+      }
+      current = current.parent;
+    }
+    return false;
+  }
+
+  bool _checkMapContainsKeyGuardForIndex(
+      AstNode condition, Expression target, Expression index) {
+    if (condition is MethodInvocation) {
+      final methodName = condition.methodName.name;
+      final targetCondition = condition.target;
+      final argumentList = condition.argumentList.arguments;
+
+      if (methodName == 'containsKey' &&
+          argumentList.length == 1 &&
+          targetCondition != null &&
+          _areNodesEqual(target, targetCondition) &&
+          _areNodesEqual(index, argumentList.first)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   String? _getVariableName(Expression operand) {
@@ -64,14 +104,8 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
           if (element is IfElement) {
             final condition = _unwrapParentheses(element.expression);
             if (_isDescendant(node, element) &&
-                condition is BinaryExpression &&
-                condition.operator.type == TokenType.BANG_EQ &&
-                condition.rightOperand is NullLiteral) {
-              final left = condition.leftOperand;
-              String? checkedName = _getVariableName(left);
-              if (checkedName == variableName) {
-                return true;
-              }
+                _checkCondition(condition, variableName)) {
+              return true;
             }
           }
         }
@@ -112,23 +146,20 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
           }
         }
       } else if (current is ConditionalExpression) {
-        final condition = current.condition;
-        if (_isNodeInExpression(node, current.thenExpression)) {
-          if (_checkCondition(condition, variableName)) {
-            return true;
-          }
-        } else if (_isNodeInExpression(node, current.elseExpression)) {
-          if (_checkCondition(condition, variableName)) {
-            return false;
-          }
-          if (current.elseExpression is ConditionalExpression) {
-            final nested = current.elseExpression as ConditionalExpression;
-            if (_isNodeInExpression(node, nested.thenExpression) &&
-                _checkCondition(nested.condition, variableName)) {
+        final condition = _unwrapParentheses(current.condition);
+        if (condition is BinaryExpression &&
+            condition.rightOperand is NullLiteral &&
+            _getVariableName(condition.leftOperand) == variableName) {
+          final isNotNullCheck = condition.operator.type == TokenType.BANG_EQ;
+          final isNullCheck = condition.operator.type == TokenType.EQ_EQ;
+
+          if (_isNodeInExpression(node, current.thenExpression)) {
+            if (isNotNullCheck) {
               return true;
-            } else if (_isNodeInExpression(node, nested.elseExpression) &&
-                _checkCondition(nested.condition, variableName)) {
-              return false;
+            }
+          } else if (_isNodeInExpression(node, current.elseExpression)) {
+            if (isNullCheck) {
+              return true;
             }
           }
         }
@@ -146,13 +177,17 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
               return true;
             }
           }
-          if (_checkCondition(condition, variableName)) {
+          if (_checkCondition(condition, variableName, isInBlock: true)) {
             return false;
           }
-        } else {
-          if (_checkCondition(condition, variableName) ||
+        } else if (_isNodeInStatement(node, current.thenStatement)) {
+          if (_checkCondition(condition, variableName, isInBlock: true) ||
               _checkMapContainsKeyGuard(
                   node, variableName, condition, current.thenStatement)) {
+            return true;
+          }
+        } else {
+          if (_checkCondition(condition, variableName, isInBlock: false)) {
             return true;
           }
         }
@@ -174,7 +209,8 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
     return false;
   }
 
-  bool _checkCondition(AstNode condition, String variableName) {
+  bool _checkCondition(AstNode condition, String variableName,
+      {bool isInBlock = true}) {
     final unwrappedCondition = _unwrapParentheses(condition);
 
     if (unwrappedCondition is BinaryExpression) {
@@ -182,27 +218,60 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
       final right = unwrappedCondition.rightOperand;
       final operator = unwrappedCondition.operator.type;
 
-      if (left is SimpleIdentifier &&
-          left.name == variableName &&
-          right is NullLiteral &&
-          operator == TokenType.BANG_EQ) {
-        return true;
-      } else if (left is PrefixedIdentifier &&
-          left.identifier.name == variableName &&
-          right is NullLiteral &&
-          operator == TokenType.BANG_EQ) {
-        return true;
-      } else if (left is PropertyAccess &&
-          '${(left.target as SimpleIdentifier).name}.${left.propertyName.name}' ==
-              variableName &&
-          right is NullLiteral &&
-          operator == TokenType.BANG_EQ) {
-        return true;
+      if (operator == TokenType.BANG_EQ && right is NullLiteral) {
+        if (left is SimpleIdentifier && left.name == variableName) {
+          return true;
+        } else if (left is PrefixedIdentifier &&
+            left.identifier.name == variableName) {
+          return true;
+        } else if (left is PropertyAccess &&
+            '${(left.target as SimpleIdentifier).name}.${left.propertyName.name}' ==
+                variableName) {
+          return true;
+        }
       }
 
-      if (unwrappedCondition.operator.type == TokenType.AMPERSAND_AMPERSAND) {
-        return _checkCondition(unwrappedCondition.leftOperand, variableName) ||
-            _checkCondition(unwrappedCondition.rightOperand, variableName);
+      if (operator == TokenType.EQ_EQ && right is NullLiteral) {
+        if (left is SimpleIdentifier && left.name == variableName) {
+          return true;
+        } else if (left is PrefixedIdentifier &&
+            left.identifier.name == variableName) {
+          return true;
+        } else if (left is PropertyAccess &&
+            '${(left.target as SimpleIdentifier).name}.${left.propertyName.name}' ==
+                variableName) {
+          return true;
+        }
+      }
+
+      if (operator == TokenType.AMPERSAND_AMPERSAND) {
+        final leftCondition = _unwrapParentheses(left);
+        if (leftCondition is BinaryExpression &&
+            leftCondition.operator.type == TokenType.BANG_EQ &&
+            leftCondition.rightOperand is NullLiteral) {
+          final leftLeft = leftCondition.leftOperand;
+          String? checkedName = _getVariableName(leftLeft);
+          if (checkedName == variableName) {
+            return true;
+          }
+        }
+
+        return _checkCondition(left, variableName) ||
+            _checkCondition(right, variableName);
+      }
+
+      if (operator == TokenType.BAR_BAR) {
+        final leftSafe =
+            _checkCondition(left, variableName, isInBlock: isInBlock);
+        final rightSafe =
+            _checkCondition(right, variableName, isInBlock: isInBlock);
+        if (isInBlock) {
+          // If ! is in the block, all conditions must ensure non-nullity
+          return leftSafe && rightSafe;
+        } else {
+          // If ! is in the condition (e.g., l!.isEmpty), check if guarded
+          return leftSafe || rightSafe;
+        }
       }
     }
     return false;
@@ -219,29 +288,50 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
       AstNode condition, Statement thenStatement) {
     VariableDeclaration? declaration =
         _findVariableDeclarationInStatement(thenStatement, variableName);
-    if (declaration == null || declaration.initializer == null) {
-      return false;
-    }
+    if (declaration != null && declaration.initializer != null) {
+      if (declaration.initializer is IndexExpression) {
+        final indexExpr = declaration.initializer as IndexExpression;
+        final target = indexExpr.target;
+        final index = indexExpr.index;
 
-    if (declaration.initializer is IndexExpression) {
-      final indexExpr = declaration.initializer as IndexExpression;
-      final target = indexExpr.target;
-      final index = indexExpr.index;
+        if (condition is MethodInvocation) {
+          final methodName = condition.methodName.name;
+          final targetCondition = condition.target;
+          final argumentList = condition.argumentList.arguments;
 
-      if (condition is MethodInvocation) {
-        final methodName = condition.methodName.name;
-        final targetCondition = condition.target;
-        final argumentList = condition.argumentList.arguments;
-
-        if (methodName == 'containsKey' &&
-            argumentList.length == 1 &&
-            targetCondition != null &&
-            _areNodesEqual(target, targetCondition) &&
-            _areNodesEqual(index, argumentList.first)) {
-          return true;
+          if (methodName == 'containsKey' &&
+              argumentList.length == 1 &&
+              targetCondition != null &&
+              _areNodesEqual(target, targetCondition) &&
+              _areNodesEqual(index, argumentList.first)) {
+            return true;
+          }
         }
       }
     }
+
+    if (node is PostfixExpression && node.operator.type == TokenType.BANG) {
+      final operand = node.operand;
+      if (operand is IndexExpression) {
+        final target = operand.target;
+        final index = operand.index;
+
+        if (condition is MethodInvocation) {
+          final methodName = condition.methodName.name;
+          final targetCondition = condition.target;
+          final argumentList = condition.argumentList.arguments;
+
+          if (methodName == 'containsKey' &&
+              argumentList.length == 1 &&
+              targetCondition != null &&
+              _areNodesEqual(target, targetCondition) &&
+              _areNodesEqual(index, argumentList.first)) {
+            return true;
+          }
+        }
+      }
+    }
+
     return false;
   }
 
@@ -296,6 +386,13 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
 
   bool _areNodesEqual(AstNode? node1, AstNode? node2) {
     if (node1 == null || node2 == null) return node1 == node2;
+    if (node1.runtimeType != node2.runtimeType) return false;
+    if (node1 is SimpleIdentifier && node2 is SimpleIdentifier) {
+      return node1.name == node2.name;
+    }
+    if (node1 is StringLiteral && node2 is StringLiteral) {
+      return node1.stringValue == node2.stringValue;
+    }
     return node1.toString() == node2.toString();
   }
 

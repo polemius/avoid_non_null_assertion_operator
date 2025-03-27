@@ -176,7 +176,9 @@ void test18() {
 
 void test19() {
   final Map<String, int> data = {};
-  var result = data.containsKey('key') ? data['key']! : 0; // allowed
+  var result = data.containsKey('key1') ? data['key1']! : 0; // allowed
+  var result2 =
+      data.containsKey('key1') ? data['key2']! : 0; // should be flagged
   print(result);
 }
 
@@ -193,6 +195,7 @@ void test21() {
   final items = [
     'start',
     if (n != null) n!, // allowed
+    if (n != null && n.isNotEmpty) n!, // allowed
     'end',
   ];
   print(items);
@@ -211,6 +214,31 @@ String? test23(D testD) {
     return null;
   } else {
     return testD.name!; // allowed
+  }
+}
+
+// todo
+void test24(List<String> elements) {
+  Map<String, List<int>> grouped = {};
+  for (var e in elements) {
+    if (grouped.containsKey(e)) {
+      grouped[e]!.add(1); // allowed
+    }
+  }
+}
+
+void test25() {
+  String? value;
+  var result = (value == null) ? "" : value!; // allowed
+  print(result);
+}
+
+void test26() {
+  List<int>? l = null;
+
+  if (l == null || l!.isEmpty) {
+    // allowed
+    print(l);
   }
 }
 
