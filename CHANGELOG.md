@@ -1,3 +1,7 @@
+## 1.3.0
+
+- Rewrite algorithm for more advanced validations
+
 ## 1.2.0
 
 - Update versions of packages

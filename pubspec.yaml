@@ -1,6 +1,6 @@
 name: avoid_non_null_assertion_operator
 description: A custom lint package to forbid the non-null assertion operator (!).
-version: 1.2.0
+version: 1.3.0
 repository: https://github.com/polemius/avoid_non_null_assertion_operator
 
 environment:
