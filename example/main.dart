@@ -129,6 +129,57 @@ void test12() {
   }
 }
 
+void test13() {
+  final Map<String, int> data = {};
+  if (data.containsKey('test')) {
+    var t = data['test'];
+    print(t!); // Allowed
+  }
+}
+
+void test14() {
+  String? value;
+  var result = true ? value! : "default"; // should be flagged
+  print(result);
+}
+
+void test15() {
+  String? value;
+  if (value != null) {
+    var result = true ? value! : "default"; // allowed
+    print(result);
+  }
+}
+
+void test16() {
+  String? value;
+  var result = (value != null) ? value! : "default"; // allowed
+  print(result);
+}
+
+void test17() {
+  String? value;
+  var result = (value != null) ? "default" : value!; // should be flagged
+  print(result);
+}
+
+void test18() {
+  String? value;
+  String? other;
+  var result = (value != null)
+      ? value!
+      : (other != null)
+          ? other!
+          : "default"; // allowed both
+  print(result);
+}
+
+void test19() {
+  final Map<String, int> data = {};
+  var result = data.containsKey('key') ? data['key']! : 0; // allowed
+  print(result);
+}
+
 void main() {
   final A testA = A();
 

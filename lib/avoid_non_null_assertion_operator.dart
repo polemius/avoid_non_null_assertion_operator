@@ -7,11 +7,10 @@ import 'package:custom_lint_builder/custom_lint_builder.dart';
 class AvoidNonNullAssertionOperator extends DartLintRule {
   AvoidNonNullAssertionOperator() : super(code: _code);
 
-  // Define the lint rule details
   static const _code = LintCode(
     name: 'avoid_non_null_assertion_operator',
     problemMessage:
-        'Avoid using "!" unless you’ve checked the variable isn’t null first.',
+        'Avoid using "!" unless you\'ve checked the variable isn\'t null first.',
     errorSeverity: analyzer.ErrorSeverity.ERROR,
   );
 
@@ -22,44 +21,74 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
     CustomLintContext context,
   ) {
     context.registry.addPostfixExpression((node) {
-      if (node.operator.type == TokenType.BANG) {
-        final operand = node.operand;
-        String? variableName;
+      if (node.operator.type != TokenType.BANG) {
+        return;
+      }
+      final operand = node.operand;
+      String? variableName = _getVariableName(operand);
 
-        if (operand is SimpleIdentifier) {
-          variableName = operand.name;
-        } else if (operand is PrefixedIdentifier) {
-          variableName = operand.identifier.name;
-        } else if (operand is PropertyAccess) {
-          variableName = operand.propertyName.name;
+      if (variableName == null) {
+        if (!_isExpressionGuarded(node)) {
+          reporter.atNode(node, code);
         }
+        return;
+      }
 
-        if (variableName != null) {
-          if (!_isGuardedByNullCheck(node, variableName)) {
-            reporter.reportErrorForNode(code, node);
-          }
-        } else {
-          if (!_isExpressionGuarded(node)) {
-            reporter.reportErrorForNode(code, node);
-          }
-        }
+      if (!_isGuardedByNullCheck(node, variableName)) {
+        reporter.atNode(node, code);
       }
     });
+  }
+
+  String? _getVariableName(Expression operand) {
+    if (operand is SimpleIdentifier) {
+      return operand.name;
+    }
+    if (operand is PrefixedIdentifier) {
+      return operand.identifier.name;
+    }
+    if (operand is PropertyAccess) {
+      return operand.propertyName.name;
+    }
+    return null;
   }
 
   bool _isGuardedByNullCheck(AstNode node, String variableName) {
     AstNode? current = node;
 
     while (current != null) {
-      if (current is IfStatement) {
+      if (current is ConditionalExpression) {
         final condition = current.condition;
+        if (_isNodeInExpression(node, current.thenExpression)) {
+          if (_checkCondition(condition, variableName)) {
+            return true;
+          }
+        } else if (_isNodeInExpression(node, current.elseExpression)) {
+          if (_checkCondition(condition, variableName)) {
+            return false;
+          }
+          if (current.elseExpression is ConditionalExpression) {
+            final nested = current.elseExpression as ConditionalExpression;
+            if (_isNodeInExpression(node, nested.thenExpression) &&
+                _checkCondition(nested.condition, variableName)) {
+              return true;
+            } else if (_isNodeInExpression(node, nested.elseExpression) &&
+                _checkCondition(nested.condition, variableName)) {
+              return false;
+            }
+          }
+        }
+      } else if (current is IfStatement) {
+        final condition = current.expression;
         if (current.elseStatement != null &&
             _isNodeInStatement(node, current.elseStatement!)) {
           if (_checkCondition(condition, variableName)) {
-            return false; // In else branch where null check failed
+            return false;
           }
-        } else if (_checkCondition(condition, variableName)) {
-          return true; // In then branch or outside else, null check succeeded
+        } else if (_checkCondition(condition, variableName) ||
+            _checkMapContainsKeyGuard(
+                node, variableName, condition, current.thenStatement)) {
+          return true;
         }
       } else if (current is WhileStatement) {
         final condition = current.condition;
@@ -76,10 +105,14 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
       current = current.parent;
     }
 
-    return false; // No guarding null check found
+    return false;
   }
 
   bool _checkCondition(AstNode condition, String variableName) {
+    if (condition is ParenthesizedExpression) {
+      return _checkCondition(condition.expression, variableName);
+    }
+
     if (condition is BinaryExpression) {
       final left = condition.leftOperand;
       final right = condition.rightOperand;
@@ -110,6 +143,90 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
     return false;
   }
 
+  bool _checkMapContainsKeyGuard(AstNode node, String variableName,
+      AstNode condition, Statement thenStatement) {
+    VariableDeclaration? declaration =
+        _findVariableDeclarationInStatement(thenStatement, variableName);
+    if (declaration == null || declaration.initializer == null) {
+      return false;
+    }
+
+    if (declaration.initializer is IndexExpression) {
+      final indexExpr = declaration.initializer as IndexExpression;
+      final target = indexExpr.target;
+      final index = indexExpr.index;
+
+      if (condition is MethodInvocation) {
+        final methodName = condition.methodName.name;
+        final targetCondition = condition.target;
+        final argumentList = condition.argumentList.arguments;
+
+        if (methodName == 'containsKey' &&
+            argumentList.length == 1 &&
+            targetCondition != null &&
+            _areNodesEqual(target, targetCondition) &&
+            _areNodesEqual(index, argumentList.first)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _checkMapContainsKeyForExpression(
+      AstNode condition, Expression thenExpression) {
+    if (thenExpression is PostfixExpression &&
+        thenExpression.operator.type == TokenType.BANG) {
+      final operand = thenExpression.operand;
+      if (operand is IndexExpression) {
+        final target = operand.target;
+        final index = operand.index;
+
+        if (condition is MethodInvocation) {
+          final methodName = condition.methodName.name;
+          final targetCondition = condition.target;
+          final argumentList = condition.argumentList.arguments;
+
+          if (methodName == 'containsKey' &&
+              argumentList.length == 1 &&
+              targetCondition != null &&
+              _areNodesEqual(target, targetCondition) &&
+              _areNodesEqual(index, argumentList.first)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  VariableDeclaration? _findVariableDeclarationInStatement(
+      Statement statement, String variableName) {
+    if (statement is Block) {
+      for (var stmt in statement.statements) {
+        if (stmt is VariableDeclarationStatement) {
+          for (var decl in stmt.variables.variables) {
+            if (decl.name.toString() == variableName) {
+              return decl;
+            }
+          }
+        }
+      }
+    } else if (statement is VariableDeclarationStatement) {
+      for (var decl in statement.variables.variables) {
+        if (decl.name.toString() == variableName) {
+          return decl;
+        }
+      }
+    }
+    return null;
+  }
+
+  bool _areNodesEqual(AstNode? node1, AstNode? node2) {
+    if (node1 == null || node2 == null) return node1 == node2;
+    return node1.toString() == node2.toString();
+  }
+
   bool _isNodeInStatement(AstNode node, Statement statement) {
     if (statement is Block) {
       for (var stmt in statement.statements) {
@@ -118,8 +235,19 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
         }
       }
     } else {
-      // Recursively check if node is a descendant of the statement
       return _isDescendant(node, statement);
+    }
+    return false;
+  }
+
+  bool _isNodeInExpression(AstNode node, Expression expression) {
+    if (node == expression) {
+      return true;
+    }
+    for (var child in expression.childEntities) {
+      if (child is AstNode && _isDescendant(node, child)) {
+        return true;
+      }
     }
     return false;
   }
@@ -140,7 +268,7 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
     AstNode? current = node.parent;
     while (current != null) {
       if (current is IfStatement) {
-        final condition = current.condition;
+        final condition = current.expression;
         if (_conditionContainsExpression(condition, node.operand) &&
             _checkExpressionCondition(condition)) {
           return true;
@@ -148,6 +276,13 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
       } else if (current is BinaryExpression &&
           current.operator.type == TokenType.AMPERSAND_AMPERSAND) {
         if (_checkExpressionCondition(current)) {
+          return true;
+        }
+      } else if (current is ConditionalExpression) {
+        final condition = current.condition;
+        if (_isNodeInExpression(node, current.thenExpression) &&
+            (_checkExpressionCondition(condition) ||
+                _checkMapContainsKeyForExpression(condition, node))) {
           return true;
         }
       }

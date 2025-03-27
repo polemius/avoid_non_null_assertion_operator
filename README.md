@@ -10,6 +10,16 @@ A custom lint package for Dart/Flutter that helps enforce safer null handling by
 
 ## Getting started
 
+Run:
+```shell
+dart pub add --dev custom_lint avoid_non_null_assertion_operator
+```
+
+Or if using Flutter:
+```shell
+flutter pub add --dev custom_lint avoid_non_null_assertion_operator
+```
+
 Add this to your package's `pubspec.yaml` file:
 
 ```yaml
