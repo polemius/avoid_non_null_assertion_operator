@@ -224,10 +224,16 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
         } else if (left is PrefixedIdentifier &&
             left.identifier.name == variableName) {
           return true;
-        } else if (left is PropertyAccess &&
-            '${(left.target as SimpleIdentifier).name}.${left.propertyName.name}' ==
-                variableName) {
-          return true;
+        } else if (left is PropertyAccess) {
+          String leftName = '';
+          if (left.target is SimpleIdentifier) {
+            leftName = (left.target as SimpleIdentifier).name;
+          } else {
+            leftName = left.target?.toString() ?? '';
+          }
+          if ('$leftName.${left.propertyName.name}' == variableName) {
+            return true;
+          }
         }
       }
 
@@ -237,10 +243,16 @@ class AvoidNonNullAssertionOperator extends DartLintRule {
         } else if (left is PrefixedIdentifier &&
             left.identifier.name == variableName) {
           return true;
-        } else if (left is PropertyAccess &&
-            '${(left.target as SimpleIdentifier).name}.${left.propertyName.name}' ==
-                variableName) {
-          return true;
+        } else if (left is PropertyAccess) {
+          String leftName = '';
+          if (left.target is SimpleIdentifier) {
+            leftName = (left.target as SimpleIdentifier).name;
+          } else {
+            leftName = left.target?.toString() ?? '';
+          }
+          if ('$leftName.${left.propertyName.name}' == variableName) {
+            return true;
+          }
         }
       }
 
