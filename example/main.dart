@@ -1,5 +1,6 @@
 class A {
   String? nullable;
+  int? counter;
 
   String getFieldSafeWithBang() {
     if (nullable != null) {
@@ -250,6 +251,13 @@ void main() {
   if (testA.nullable != null) {
     print(testA.nullable!); // Allowed
   }
+}
+
+void test27() {
+  final List<A> testA = [];
+
+  testA.map((e) =>
+      e.counter != null && e.counter! >= 0 && e.counter! <= 10); // allowed
 }
 
 class E {

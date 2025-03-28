@@ -4,12 +4,12 @@ import '../utils/condition_checker.dart';
 
 bool validateBinaryExpression(
     AstNode node, AstNode current, String? variableName) {
-  if (node is! BinaryExpression || variableName == null) return false;
+  if (current is! BinaryExpression || variableName == null) return false;
 
-  if (node.operator.type != TokenType.AMPERSAND_AMPERSAND) return false;
+  if (current.operator.type != TokenType.AMPERSAND_AMPERSAND) return false;
 
   return ConditionChecker.isNullSafeCondition(
-    node,
+    current,
     variableName,
   );
 }
