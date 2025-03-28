@@ -1,3 +1,7 @@
+## 1.7.0
+
+- Refactoring
+
 ## 1.6.0
 
 - Update algorithm to catch more advanced examples
