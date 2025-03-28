@@ -3,7 +3,8 @@ analyzer:
     - custom_lint
   errors:
     undefined_lint: ignore
+    avoid_non_null_assertion_operator: error
 
 linter:
   rules:
-    avoid_non_null_assertion_operator: true
+    avoid_non_null_assertion_operator: error
