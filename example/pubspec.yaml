@@ -4,6 +4,9 @@ environment:
   sdk: '>=2.18.0 <4.0.0'
 
 dev_dependencies:
+  analyzer: ^6.0.0 # or latest version
+  path: ^1.8.0 # or latest version
   custom_lint: ^0.6.8
+  test: ^1.24.0
   avoid_non_null_assertion_operator:
     path: ../
